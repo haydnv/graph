@@ -1,2 +1,2 @@
 # graph
-A concurrent + async exection graph for Rust
+A composable concurrent execution graph for Rust with traits to support user-defined operations

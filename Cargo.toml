@@ -1,0 +1,15 @@
+[package]
+name = "async-graph"
+version = "0.1.0"
+edition = "2018"
+authors = ["haydn@tinychain.net"]
+license = "Apache-2.0"
+description = "A composable concurrent execution graph with traits to support user-defined operations"
+repository = "https://github.com/haydnv/graph"
+readme = "README.md"
+
+categories = ["algorithms", "asynchronous", "concurrency"]
+
+[dependencies]
+async-trait = "0.1"
+tokio = { version = "1.17", features=["macros", "rt-multi-thread"] }
