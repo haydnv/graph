@@ -6,11 +6,16 @@ fn concat(inputs: (String, String)) -> String {
 
 fn main() {
     let hello = "hello".to_owned();
-    let name = Placeholder::<String>::new();
+    let mut name = Placeholder::<String>::new();
 
-    let inputs = (hello, name);
+    let inputs = (hello, name.clone());
     let hello_name: Op<'_, (String, String), String> = Op::new(inputs, concat);
 
-    let mut graph = Graph::new(name, hello_name);
-    assert_eq!(graph.eval("world".to_string()), "hello world");
+    let world = "world".to_string();
+    name.provide(world);
+    assert_eq!(hello_name.eval(), "hello world");
+
+    let test = "test".to_string();
+    name.provide(test);
+    assert_eq!(hello_name.eval(), "hello test");
 }

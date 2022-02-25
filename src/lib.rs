@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::sync::{Arc, RwLock};
 
 pub trait Node {
     type State;
@@ -10,7 +10,8 @@ pub trait State: Sized {
     type Target;
 }
 
-macro_rules! rust_state {
+#[macro_export]
+macro_rules! state {
     ($t:ty) => {
         impl State for $t {
             type Target = $t;
@@ -26,8 +27,8 @@ macro_rules! rust_state {
     };
 }
 
-rust_state!(());
-rust_state!(String);
+state!(());
+state!(String);
 
 impl<T1, T2> State for (T1, T2)
 where
@@ -76,64 +77,36 @@ impl<'a, I, O> Node for Op<'a, I, O> {
     }
 }
 
+#[derive(Clone)]
 pub struct Placeholder<T> {
-    state: PhantomData<T>,
+    state: Arc<RwLock<Option<T>>>,
 }
 
-impl<T> Copy for Placeholder<T> {}
-
-impl<T> Clone for Placeholder<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Placeholder<T> {
+impl<'a, T: Clone> Placeholder<T> {
     pub fn new() -> Self {
-        Self { state: PhantomData }
-    }
-}
-
-impl<T> State for Placeholder<T> {
-    type Target = T;
-}
-
-impl<T> Node for Placeholder<T> {
-    type State = T;
-
-    fn eval(&self) -> Self::State {
-        panic!("cannot evaluate a placeholder")
-    }
-}
-
-pub struct Graph<'a, Input, Output> {
-    input: Box<dyn Node<State = Input> + 'a>,
-    output: Box<dyn Node<State = Output> + 'a>,
-}
-
-impl<'a, Input, Output> Graph<'a, Input, Output>
-where
-    Input: 'a,
-    Output: 'a,
-{
-    pub fn new<O>(input: Placeholder<Input>, output: O) -> Self
-    where
-        O: Node<State = Output> + 'a,
-        Placeholder<Input>: Node<State = Input>,
-    {
-        let input: Box<dyn Node<State = Input> + 'a> = Box::new(input);
-
         Self {
-            input,
-            output: Box::new(output),
+            state: Arc::new(RwLock::new(None)),
         }
     }
 
-    pub fn eval<I>(&mut self, input: I) -> Output
-    where
-        I: Node<State = Input> + 'a,
-    {
-        self.input = Box::new(input);
-        self.output.eval()
+    pub fn provide(&mut self, value: T) {
+        let mut state = self.state.write().expect("placeholder");
+        *state = Some(value);
+    }
+}
+
+impl<'a, T> State for Placeholder<T> {
+    type Target = T;
+}
+
+impl<'a, T> Node for Placeholder<T>
+where
+    T: Clone,
+{
+    type State = T;
+
+    fn eval(&self) -> Self::State {
+        let state = self.state.read().expect("placeholder lock");
+        state.as_ref().expect("input").clone()
     }
 }
