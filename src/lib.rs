@@ -1,56 +1,55 @@
-use std::convert::{TryFrom, TryInto};
-use std::pin::Pin;
-use std::process::Output;
+pub trait Node {
+    type State;
 
-use async_trait::async_trait;
-use futures::{Future, FutureExt, TryFutureExt};
-
-trait OpDef<Context, I, O, E>: Fn(Context, I) {}
-
-pub enum ErrorKind {
-    TypeError,
+    fn eval(&self) -> Self::State;
 }
 
-pub struct Error {
-    kind: ErrorKind,
-    message: String,
-}
+pub trait State {}
 
-pub struct Op<Context, I, O, E> {
-    input: Node<Context, I>,
-    def: Box<dyn Fn(Context, I) -> Result<O, E> + Send>,
-}
+impl State for () {}
+impl State for String {}
 
-impl<Context, I, O, E> Op<Context, I, O, E>
-where
-    Context: Clone,
-    I: Clone,
-    Error: From<E>,
+impl<T1, T2> State for (T1, T2)
+    where
+        T1: State,
+        T2: State,
 {
-    fn eval(&self, context: Context) -> Pin<Box<dyn Future<Output = Result<O, Error>> + '_>> {
-        Box::pin(async move {
-            let input = self.input.eval(context.clone()).await?;
-            (self.def)(context, input).map_err(Error::from)
-        })
+}
+
+impl<T> Node for T
+    where
+        T: State + Clone,
+{
+    type State = Self;
+
+    fn eval(&self) -> Self {
+        self.clone()
     }
 }
 
-pub enum Node<Context, State> {
-    State(State),
-    Op(Box<Op<Context, State, State, Error>>),
+pub struct Op<'a, I, O> {
+    input: Box<dyn Node<State = I> + 'a>,
+    def: Box<dyn Fn(I) -> O + 'a>,
 }
 
-impl<Context, State> Node<Context, State>
-where
-    Context: Clone,
-    State: Clone,
-{
-    fn eval(&self, context: Context) -> Pin<Box<dyn Future<Output = Result<State, Error>> + '_>> {
-        Box::pin(async move {
-            match self {
-                Self::State(state) => Ok(state.clone()),
-                Self::Op(op) => op.eval(context).await,
-            }
-        })
+impl<'a, I, O> Op<'a, I, O> {
+    pub fn new<N, F>(input: N, def: F) -> Self
+        where
+            N: Node<State = I> + 'a,
+            F: Fn(I) -> O + 'a,
+    {
+        Self {
+            input: Box::new(input),
+            def: Box::new(def),
+        }
+    }
+}
+
+impl<'a, I, O> Node for Op<'a, I, O> {
+    type State = O;
+
+    fn eval(&self) -> O {
+        let input = self.input.eval();
+        (self.def)(input)
     }
 }
