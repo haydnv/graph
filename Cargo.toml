@@ -11,4 +11,5 @@ readme = "README.md"
 categories = ["algorithms", "asynchronous", "concurrency"]
 
 [dependencies]
+hr-id = "0.1"
 log = "0.4"
